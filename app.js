@@ -299,3 +299,26 @@ async function loop(ts){
 }
 
 canvas.addEventListener("touchmove", e=>e.preventDefault(), {passive:false});
+// ===== 3本指タッチでメニュー表示/非表示 =====
+canvas.addEventListener("touchstart", (e) => {
+  if (e.touches && e.touches.length === 3) {
+    document.body.classList.toggle("showMenu");
+  }
+}, { passive: true });
+
+// ===== ダブルタップでフルスクリーン切替（任意） =====
+let _lastTap = 0;
+canvas.addEventListener("touchend", () => {
+  const now = Date.now();
+  if (now - _lastTap < 350) toggleFullscreen();
+  _lastTap = now;
+});
+
+function toggleFullscreen(){
+  const el = document.documentElement;
+  if(!document.fullscreenElement){
+    el.requestFullscreen?.();
+  }else{
+    document.exitFullscreen?.();
+  }
+}
