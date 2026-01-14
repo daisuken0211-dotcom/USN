@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>半側空間無視デモ（Coco-SSD搭載）</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>半側空間無視デモ</h1>
+    <p class="muted">中央付近の物体の「左半分」がランダムにぼやけたり消えたりする体験をします。プライバシー：映像は端末内だけで処理されます。</p>
+  </header>
+
+  <section id="controls">
+    <label><input id="enableObject" type="checkbox" checked> 物体無視（Coco‑SSD）を有効</label>
+    <label>対象クラス:
+      <select id="classSelect" multiple size="3">
+        <option value="cup" selected>cup</option>
+        <option value="bottle" selected>bottle</option>
+        <option value="cell phone">cell phone</option>
+        <option value="remote">remote</option>
+        <option value="book">book</option>
+        <option value="chair">chair</option>
+      </select>
+    </label>
+    <label>効果強度: <input id="strength" type="range" min="0" max="1" step="0.01" value="0.6"></label>
+    <label>発生確率: <input id="prob" type="range" min="0" max="1" step="0.01" value="0.4"></label>
+    <label>センター位置: <input id="center" type="range" min="0.3" max="0.7" step="0.01" value="0.5"></label>
+    <button id="resetBg">背景リセット</button>
+    <button id="calibrateBtn">キャリブレーション（1回）</button>
+    <div id="status">モデル読み込み中…</div>
+  </section>
+
+  <video id="video" autoplay playsinline muted style="display:none"></video>
+  <canvas id="glcanvas"></canvas>
+
+  <footer>
+    <small>Tips: ペン等は Coco‑SSD のクラスに無い場合があります。検出精度が必要ならカスタムモデル（Teachable Machine）を使ってください。</small>
+  </footer>
+
+  <!-- TensorFlow.js + Coco-SSD (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.21.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js"></script>
+
+  <script src="main.js"></script>
+</body>
+</html>
+```
+
+
+```css name=styles.css
+:root{--bg:#0f1720;--panel:#0b1220;--accent:#4f46e5;--muted:#98a0b3;--text:#e6eef6}
+html,body{height:100%;margin:0;font-family:Inter, "Noto Sans JP", system-ui, -apple-system, "Hiragino Kaku Gothic ProN", "Segoe UI", Roboto, "Yu Gothic", sans-serif;background:var(--bg);color:var(--text)}
+body{display:flex;flex-direction:column;align-items:center;padding:18px;gap:14px}
+header{max-width:980px;text-align:center}
+#controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:center;background:var(--panel);padding:10px;border-radius:8px}
+#controls label{display:flex;align-items:center;gap:6px;font-size:0.95rem}
+#status{padding-left:8px;color:var(--muted)}
+canvas#glcanvas{max-width:100%;width:900px;height:600px;background:#000;border-radius:6px;box-shadow:0 6px 24px rgba(0,0,0,0.6)}
+select{min-width:160px}
+footer{color:var(--muted);font-size:0.85rem;opacity:0.9}
+.muted{color:var(--muted)}
+button{background:var(--accent);color:white;border:none;padding:6px 10px;border-radius:6px;cursor:pointer}
+button:active{transform:translateY(1px)}
+```
+
+```glsl name=shader.vert
+attribute vec2 a_position;
+attribute vec2 a_texcoord;
+varying vec2 v_texcoord;
+void main() {
+  gl_Position = vec4(a_position, 0, 1);
+  v_texcoord = a_texcoord;
+}
+```
+
+```glsl name=shader.frag
+precision mediump float;
+uniform sampler2D u_texture;
+uniform float u_time;
+uniform float u_strength; // 0..1
+uniform float u_prob; // 0..1
+uniform vec2 u_resolution;
+uniform float u_centerX; // 0..1 (center vertical line)
+uniform int u_objCount;
+uniform vec4 u_objs[8]; // x,y,w,h in 0..1 coords
+varying vec2 v_texcoord;
+
+float rand(vec2 co){
+  return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+}
+
+void main(){
+  vec2 uv = v_texcoord;
+  float center = u_centerX;
+  vec4 color = texture2D(u_texture, uv);
+
+  // left-side scene effect (hemispatial)
+  if(uv.x < center){
+    float t = smoothstep(center, 0.0, uv.x);
+    float wave = sin((uv.y*20.0 + u_time*2.0) ) * 0.01 * u_strength;
+    float noise = (rand(uv + u_time) - 0.5) * 0.02 * u_strength;
+    vec2 displaced = uv + vec2(wave + noise * t, 0.0);
+    vec4 c1 = texture2D(u_texture, displaced + vec2(0.002,0.0));
+    vec4 c2 = texture2D(u_texture, displaced + vec2(-0.002,0.0));
+    color = mix(color, (c1 + c2) * 0.5, 0.6 * t * u_strength);
+    float r = rand(vec2(u_time*10.0, uv.y*100.0));
+    if(r < 0.02 * u_strength){
+      color.rgb *= 0.12;
+    }
+  }
+
+  // object-left-half effects (from detections)
+  for(int i=0;i<8;i++){
+    if(i >= u_objCount) break;
+    vec4 ob = u_objs[i];
+    // skip empty
+    if(ob.z <= 0.001) continue;
+    if(uv.x >= ob.x && uv.x <= ob.x + ob.z && uv.y >= ob.y && uv.y <= ob.y + ob.w){
+      float objCenterX = ob.x + ob.z * 0.5;
+      if(uv.x < objCenterX){
+        float rr = rand(vec2(float(i)*12.34 + u_time, uv.y*100.0));
+        if(rr < u_prob){
+          float dx = sin((uv.y*30.0 + float(i)*1.3 + u_time*4.0)) * 0.03 * u_strength;
+          vec4 c = texture2D(u_texture, uv + vec2(dx,0.0));
+          color = mix(color, c, 0.85);
+          color.rgb *= 0.7;
+        }
+      }
+    }
+  }
+
+  gl_FragColor = color;
+}
+```
+
+```javascript name=main.js
+// main.js - TFJS (Coco-SSD)統合版
+(async function(){
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('glcanvas');
+  const gl = canvas.getContext('webgl');
+  if(!gl){ alert('WebGL が必要です'); return; }
+
+  // UI
+  const enableObject = document.getElementById('enableObject');
+  const classSelect = document.getElementById('classSelect');
+  const strengthEl = document.getElementById('strength');
+  const probEl = document.getElementById('prob');
+  const centerEl = document.getElementById('center');
+  const resetBgBtn = document.getElementById('resetBg');
+  const calibrateBtn = document.getElementById('calibrateBtn');
+  const status = document.getElementById('status');
+
+  // load shaders (fetch)
+  async function fetchText(url){ const r = await fetch(url); return await r.text(); }
+  const vsSrc = await fetchText('shader.vert');
+  const fsSrc = await fetchText('shader.frag');
+
+  function createShader(gl, type, src){
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)){
+      console.error(gl.getShaderInfoLog(s)); return null;
+    }
+    return s;
+  }
+  function createProgram(gl, vsSrc, fsSrc){
+    const vs = createShader(gl, gl.VERTEX_SHADER, vsSrc);
+    const fs = createShader(gl, gl.FRAGMENT_SHADER, fsSrc);
+    const p = gl.createProgram();
+    gl.attachShader(p, vs);
+    gl.attachShader(p, fs);
+    gl.linkProgram(p);
+    if(!gl.getProgramParameter(p, gl.LINK_STATUS)){
+      console.error(gl.getProgramInfoLog(p)); return null;
+    }
+    return p;
+  }
+
+  const program = createProgram(gl, vsSrc, fsSrc);
+  const a_position = gl.getAttribLocation(program, 'a_position');
+  const a_texcoord = gl.getAttribLocation(program, 'a_texcoord');
+
+  // quad
+  const pos = new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]);
+  const posBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, posBuf); gl.bufferData(gl.ARRAY_BUFFER, pos, gl.STATIC_DRAW);
+  const texcoords = new Float32Array([0,1, 1,1, 0,0, 0,0, 1,1, 1,0]);
+  const tcBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, tcBuf); gl.bufferData(gl.ARRAY_BUFFER, texcoords, gl.STATIC_DRAW);
+
+  // texture
+  const texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+  // uniforms
+  const u_texture = gl.getUniformLocation(program, 'u_texture');
+  const u_time = gl.getUniformLocation(program, 'u_time');
+  const u_strength = gl.getUniformLocation(program, 'u_strength');
+  const u_prob = gl.getUniformLocation(program, 'u_prob');
+  const u_resolution = gl.getUniformLocation(program, 'u_resolution');
+  const u_centerX = gl.getUniformLocation(program, 'u_centerX');
+  const u_objCount = gl.getUniformLocation(program, 'u_objCount');
+  const u_objs = gl.getUniformLocation(program, 'u_objs');
+
+  // offscreen canvas for fallback detection
+  const off = document.createElement('canvas'); const offCtx = off.getContext('2d');
+  let bgData = null;
+  let bgReset = true;
+  resetBgBtn.addEventListener('click', ()=>{ bgReset = true; });
+
+  calibrateBtn.addEventListener('click', ()=>{ bgReset = true; status.textContent = 'キャリブレーション中…'; setTimeout(()=>status.textContent='準備完了',600); });
+
+  // start camera
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: "environment"}, audio:false});
+    video.srcObject = stream; await video.play();
+  }catch(e){
+    alert('カメラアクセスできません: ' + e.message); return;
+  }
+
+  function resizeToVideo(){
+    const w = video.videoWidth, h = video.videoHeight;
+    if(!w||!h) return;
+    canvas.width = w; canvas.height = h; off.width = w; off.height = h;
+    gl.viewport(0,0,canvas.width, canvas.height);
+  }
+
+  // simple background-diff detection (fallback)
+  function detectObjectSimple(){
+    const w = off.width, h = off.height;
+    offCtx.drawImage(video, 0, 0, w, h);
+    const frame = offCtx.getImageData(0,0,w,h);
+    const data = frame.data;
+    if(!bgData || bgReset){
+      bgData = new Float32Array(w*h*3);
+      for(let i=0;i<w*h;i++){
+        bgData[i*3+0] = data[i*4+0]; bgData[i*3+1] = data[i*4+1]; bgData[i*3+2] = data[i*4+2];
+      }
+      bgReset = false; return null;
+    }
+    const alpha = 0.02;
+    let minX=w, minY=h, maxX=0, maxY=0; let any=false;
+    for(let y=0;y<h;y++){
+      for(let x=0;x<w;x++){
+        const i = (y*w + x);
+        const r = data[i*4+0], g = data[i*4+1], b = data[i*4+2];
+        const bi = i*3;
+        bgData[bi+0] = bgData[bi+0] * (1-alpha) + r * alpha;
+        bgData[bi+1] = bgData[bi+1] * (1-alpha) + g * alpha;
+        bgData[bi+2] = bgData[bi+2] * (1-alpha) + b * alpha;
+        const dr = Math.abs(r - bgData[bi+0]), dg = Math.abs(g - bgData[bi+1]), db = Math.abs(b - bgData[bi+2]);
+        const diff = (dr + dg + db) / 3;
+        if(diff > 30){
+          any = true;
+          if(x < minX) minX = x; if(y < minY) minY = y; if(x > maxX) maxX = x; if(y > maxY) maxY = y;
+        }
+      }
+    }
+    if(!any) return null;
+    minX = Math.max(0, minX - 8); minY = Math.max(0, minY - 8);
+    maxX = Math.min(w-1, maxX + 8); maxY = Math.min(h-1, maxY + 8);
+    const bw = maxX - minX, bh = maxY - minY;
+    if(bw*bh < 1000) return null;
+    return {x:minX/w, y:minY/h, w:bw/w, h:bh/h};
+  }
+
+  // load COCO-SSD model
+  let model = null;
+  async function loadModel(){
+    try{
+      status.textContent = 'モデル読み込み中… (Coco‑SSD)';
+      model = await cocoSsd.load();
+      status.textContent = 'モデル準備完了';
+    }catch(e){
+      console.warn('モデル読み込み失敗', e);
+      status.textContent = 'モデル読み込み失敗（フォールバックで動作）';
+      model = null;
+    }
+  }
+  await loadModel();
+
+  // detection loop throttle
+  const DETECT_INTERVAL = 350; // ms
+  let lastDetect = 0;
+  let detectedObjs = [];
+
+  async function tryDetect(now){
+    // run ML detection periodically when enabled and model available
+    if(enableObject.checked && model && (now - lastDetect) > DETECT_INTERVAL){
+      lastDetect = now;
+      try{
+        const preds = await model.detect(video);
+        // selectable classes
+        const selected = Array.from(classSelect.selectedOptions).map(o=>o.value);
+        const centerX = parseFloat(centerEl.value);
+        const w = video.videoWidth, h = video.videoHeight;
+        detectedObjs = [];
+        for(const p of preds){
+          // p.class, p.score, p.bbox = [x,y,w,h] in pixels
+          if(p.score < 0.5) continue;
+          if(selected.length > 0 && !selected.includes(p.class)) continue;
+          const bx = p.bbox[0]/w, by = p.bbox[1]/h, bw = p.bbox[2]/w, bh = p.bbox[3]/h;
+          // only if bbox center is near screen center (tunable)
+          const bboxCenterX = bx + bw*0.5;
+          const dist = Math.abs(bboxCenterX - centerX);
+          if(dist < 0.35){ // within 35% of width from center
+            detectedObjs.push({x:bx, y:by, w:bw, h:bh});
+          }
+        }
+        // if none detected, keep empty -> fallback will be used
+      }catch(e){
+        console.warn('detect error', e);
+      }
+    }else if(!model || !enableObject.checked){
+      // fallback simple detection occasionally
+      if((now - lastDetect) > DETECT_INTERVAL){
+        lastDetect = now;
+        const d = detectObjectSimple();
+        detectedObjs = d ? [d] : [];
+      }
+    }
+  }
+
+  // prepare GL
+  gl.useProgram(program);
+  gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+  gl.enableVertexAttribArray(a_position); gl.vertexAttribPointer(a_position, 2, gl.FLOAT, false, 0, 0);
+  gl.bindBuffer(gl.ARRAY_BUFFER, tcBuf);
+  gl.enableVertexAttribArray(a_texcoord); gl.vertexAttribPointer(a_texcoord, 2, gl.FLOAT, false, 0, 0);
+
+  const start = performance.now();
+  function render(){
+    resizeToVideo();
+    if(video.readyState >= 2){
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+      try{ gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video); }catch(e){}
+    }
+
+    const now = performance.now();
+    tryDetect(now);
+
+    gl.useProgram(program);
+    gl.uniform1i(u_texture, 0);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+
+    const t = (now - start) / 1000;
+    gl.uniform1f(u_time, t);
+    gl.uniform1f(u_strength, parseFloat(strengthEl.value));
+    gl.uniform1f(u_prob, parseFloat(probEl.value));
+    gl.uniform2f(u_resolution, canvas.width, canvas.height);
+    gl.uniform1f(u_centerX, parseFloat(centerEl.value));
+
+    const maxObjs = 8;
+    const flat = new Float32Array(maxObjs*4);
+    for(let i=0;i<maxObjs;i++){
+      if(i < detectedObjs.length){
+        flat[i*4+0] = detectedObjs[i].x;
+        flat[i*4+1] = detectedObjs[i].y;
+        flat[i*4+2] = detectedObjs[i].w;
+        flat[i*4+3] = detectedObjs[i].h;
+      }else{
+        flat[i*4+0] = flat[i*4+1] = flat[i*4+2] = flat[i*4+3] = 0.0;
+      }
+    }
+    gl.uniform1i(u_objCount, detectedObjs.length);
+    gl.uniform4fv(u_objs, flat);
+
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    requestAnimationFrame(render);
+  }
+
+  requestAnimationFrame(render);
+})();
+```
+
+README（運用・公開・TIPS）
+````markdown name=README.md
+# 半側空間無視デモ（ブラウザ）
+
+概要
+- カメラ映像を使って「左側が歪んだり見えづらくなる」効果と、画面中央付近の物体の左半だけがランダムに消えたり歪む物体無視効果を体験するデモです。
+- 物体検出には TensorFlow.js の Coco‑SSD を使います。全処理はブラウザ内で行われます（映像はサーバに送られません）。
+
+使い方（開発）
+1. このリポジトリをクローン。
+2. ローカルでホスト（`python -m http.server` や VS Code Live Server）。file://だとカメラが動きません。
+3. ブラウザで開き、カメラアクセスを許可。
+4. UIでクラス・効果・強度を調整し、画面中心付近に物体を置いて試す。
+
+デプロイ（GitHub Pages）
+- リポジトリを push して、GitHub Pages を有効にするだけで公開できます（静的ファイルのみ）。
+
+プライバシー
+- 映像は端末内で処理され、外部サーバへ転送されません（モデルは CDN からダウンロードされます）。
+- 必要なら README に明記し、利用者に同意を得てください。
+
+カスタムモデル（ペンを高精度に検出したい場合）
+- Coco‑SSD のデフォルトクラスに `pen` が含まれていないことがあるため、Teachable Machine 等でペン専用の小さなモデルを作成すると良いです。
+- 作ったモデルはブラウザでロードして同様に `model.detect` の代わりに使えます（または予測APIを置き換え）。
+
+パフォーマンスのヒント
+- 検出は間引く（例: 300–500ms間隔）ことでCPU負荷を下げます。
+- モバイルではフレーム解像度を下げる（canvasサイズを縮小）と速くなります。
+- モデル読み込みの待ち時間が分かるように UI に状態表示をしておく。
+
+倫理と注意
+- 半側空間無視は神経心理学的な症状に関連します。教育目的や体験目的に使用する際は説明と注意書きを明示し、不快感を感じる人がいることを知らせてください。
