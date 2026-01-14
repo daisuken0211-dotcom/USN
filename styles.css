@@ -1,0 +1,6 @@
+html,body{height:100%;margin:0;font-family:system-ui,Segoe UI,Roboto,"Noto Sans JP",sans-serif}
+body{display:flex;flex-direction:column;align-items:center;gap:12px;padding:12px;background:#111;color:#eee}
+#controls{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+canvas#glcanvas{max-width:100%;width:720px;height:480px;background:#000;border:4px solid #222}
+h1{margin:0 0 8px 0}
+#hint{opacity:0.8;font-size:0.9rem}
