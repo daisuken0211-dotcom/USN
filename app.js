@@ -209,11 +209,17 @@ async function startCamera(){
 
     await ensureModel();
 
+    // ★ フルスクリーンを起動時にON
+    if(!document.fullscreenElement){
+      document.documentElement.requestFullscreen?.();
+    }
+
     running = true;
     btnStart.disabled = true;
     btnStop.disabled = false;
     setStatus("実行中");
     requestAnimationFrame(loop);
+    
   }catch(err){
     console.error(err);
     setStatus("カメラ開始に失敗（権限/HTTPS/ブラウザ設定を確認）");
@@ -289,6 +295,26 @@ if(enableSpace.checked){
   }
 }
 
+// ===== 物体（検出物体の左半分）エフェクト =====
+if(enableObject.checked){
+  for(const d of detections){
+    const [x,y,w,h] = d.bbox;
+
+    // 物体の左半分だけ
+    const hw = Math.floor(w / 2);
+    const s = Number(spaceIntensity.value) / 100.0;
+
+    // 物体の左側を壊す
+    applyPixelate(ctx, off, x, y, hw, h, s * 0.9);
+    applyFog(ctx, x, y, hw, h, s * 0.6);
+
+    // たまに欠落
+    if(chance(0.25)){
+      applyErase(ctx, x, y, hw, h, s * 0.8);
+    }
+  }
+}
+  
   if(showMidline.checked) drawMidline();
   if(showBoxes.checked) drawBoxes();
 
@@ -319,3 +345,6 @@ function toggleFullscreen(){
     document.exitFullscreen?.();
   }
 }
+
+mirror.checked = true;
+showBoxes.checked = true;
