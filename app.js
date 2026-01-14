@@ -267,25 +267,27 @@ async function loop(ts){
   ctx.clearRect(0,0,vw,vh);
   ctx.drawImage(off, 0,0, vw, vh);
 
-  // ★ 修正② 物体エフェクトを先に
-  if(enableObject.checked){
-    const intensity = 0.75;
-    for(const d of detections){
-      const k = keyForDet(d);
-      const state = objEffectState.get(k);
-      if(!state) continue;
-      let [x,y,w,h] = d.bbox;
-      const halfW = Math.floor(w/2);
-      ctx.save();
-      ctx.rect(x,y,halfW,h);
-      ctx.clip();
-      if(state.mode==="erase") applyErase(ctx,x,y,halfW,h,intensity);
-      else if(state.mode==="fog") applyFog(ctx,x,y,halfW,h,intensity);
-      else if(state.mode==="pixel") applyPixelate(ctx, off, x,y,halfW,h,intensity);   // ★ 修正③
-      else if(state.mode==="blur") applyBlur(ctx, off, x,y,halfW,h,intensity);        // ★ 修正③
-      ctx.restore();
+// space effect (left half of screen)
+if(enableSpace.checked){
+  const prob = Number(spaceProb.value) / 100.0;
+  if(chance(prob)){
+    const intensity = Number(spaceIntensity.value) / 100.0;
+    const x = 0, y = 0, w = Math.floor(vw/2), h = vh;
+
+    // 複数の歪みを同時に重ねる（症状感を出す）
+    applyFog(ctx, x, y, w, h, intensity * 0.85);
+    applyBlur(ctx, off, x, y, w, h, intensity * 0.75);
+    applyShiftNoise(ctx, off, x, y, w, h, intensity * 0.60);
+
+    // たまに強めの変化（白く欠ける／モザイク）
+    if(chance(0.35)){
+      applyPixelate(ctx, off, x, y, w, h, intensity * 0.90);
+    }
+    if(chance(0.20)){
+      applyErase(ctx, x, y, w, h, intensity * 0.80);
     }
   }
+}
 
   if(enableSpace.checked){
     const intensity = Number(spaceIntensity.value)/100;
