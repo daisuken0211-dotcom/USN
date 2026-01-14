@@ -289,11 +289,6 @@ if(enableSpace.checked){
   }
 }
 
-  if(enableSpace.checked){
-    const intensity = Number(spaceIntensity.value)/100;
-    applyFog(ctx,0,0,vw/2,vh,intensity);
-  }
-
   if(showMidline.checked) drawMidline();
   if(showBoxes.checked) drawBoxes();
 
