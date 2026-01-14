@@ -40,4 +40,3 @@ UIの「対象クラス」へ `tv,cup,bowl,cell phone,remote` のように入力
 - COCO-SSD (CDN)
 
 院内ネットでCDNが使えない場合は、依存JSをローカル同梱する版にもできます。
-
