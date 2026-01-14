@@ -97,3 +97,14 @@ canvas{
   display:block;
 }
 .footerNote{margin:10px 0 0; color:var(--muted); font-size:12px; line-height:1.5}
+
+/* ===== 3本指メニュー（UIの表示/非表示） ===== */
+body:not(.showMenu) header,
+body:not(.showMenu) .grid{
+  display:none;
+}
+
+/* 上の開始/停止バーは残したい場合は消さない（残す） */
+body:not(.showMenu) .row{
+  display:flex;
+}
