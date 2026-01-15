@@ -350,14 +350,16 @@ canvas.addEventListener("touchend", () => {
 function enterVR(){
   document.body.classList.add("vrmode");
 
+  const vr = document.getElementById("vrLayer");
+
   // 画面を横向きにロック（対応ブラウザのみ）
-  if(screen.orientation && screen.orientation.lock){
+  if (screen.orientation && screen.orientation.lock) {
     screen.orientation.lock("landscape").catch(()=>{});
   }
 
-  // フルスクリーンにする
-  if(!document.fullscreenElement){
-    document.documentElement.requestFullscreen?.();
+  // vrLayer だけをフルスクリーンにする
+  if (!document.fullscreenElement) {
+    vr.requestFullscreen?.();
   }
 }
 
