@@ -345,32 +345,37 @@ const ctx = canvas.getContext("2d", { willReadFrequently: false });
         // ===== UI初期化 =====
         mirror.checked = true;
         showBoxes.checked = true;
+
+btnFS.addEventListener("click", enterVR);
+btnExitVR.addEventListener("click", exitVR);
         
         // ===== VR =====
-        function enterVR(){
-          const vr = document.getElementById("vrLayer");
-          
-          document.body.classList.add("vrmode");
-          
-          if (screen.orientation && screen.orientation.lock) {
-            screen.orientation.lock("landscape").catch(()=>{});
-          }
-          
-          if (!document.fullscreenElement) {
-            vr.requestFullscreen();
-          }
-        }
+function enterVR(){
+  document.body.classList.add("vrmode");
+
+  // 横向きロック（対応ブラウザのみ）
+  if (screen.orientation && screen.orientation.lock) {
+    screen.orientation.lock("landscape").catch(()=>{});
+  }
+
+  // ★ canvas をフルスクリーンにする
+  if (canvas.requestFullscreen) {
+    canvas.requestFullscreen();
+  } else if (canvas.webkitRequestFullscreen) {
+    canvas.webkitRequestFullscreen(); // iOS Safari
+  }
+}
         
-        function exitVR(){
-          document.body.classList.remove("vrmode");
-          
-          if (screen.orientation && screen.orientation.unlock){
-            screen.orientation.unlock();
-          }
-          
-          if (document.fullscreenElement){
-            document.exitFullscreen();
-          }
-        }
+function exitVR(){
+  document.body.classList.remove("vrmode");
+
+  if (screen.orientation && screen.orientation.unlock){
+    screen.orientation.unlock();
+  }
+
+  if (document.fullscreenElement){
+    document.exitFullscreen();
+  }
+}
         
         btnExitVR.addEventListener("click", exitVR);
