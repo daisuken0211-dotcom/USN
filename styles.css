@@ -108,3 +108,97 @@ body:not(.showMenu) .grid{
 body:not(.showMenu) .row{
   display:flex;
 }
+
+/* ===== ベース ===== */
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #111;
+  color: #fff;
+  font-family: system-ui, sans-serif;
+}
+
+header {
+  padding: 8px 12px;
+}
+
+.canvasWrap {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  background: #000;
+}
+
+/* videoは通常モードでだけ表示 */
+video {
+  display: block;
+  width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+}
+
+/* ===== VRレイヤー ===== */
+#vrLayer {
+  position: relative;
+  width: 100%;
+  height: auto;
+}
+
+#canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+  background: #000;
+}
+
+/* 戻るボタン（VR中のみ表示） */
+#btnExitVR {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 9999;
+  font-size: 18px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: none;
+  background: rgba(0,0,0,0.7);
+  color: #fff;
+  display: none;
+}
+
+/* ===== VRモード ===== */
+body.vrmode {
+  background: #000;
+  overflow: hidden;
+}
+
+/* ヘッダ・設定パネル・videoを消す */
+body.vrmode header,
+body.vrmode .panel,
+body.vrmode video {
+  display: none !important;
+}
+
+/* canvasを画面いっぱいに */
+body.vrmode #vrLayer {
+  position: fixed;
+  inset: 0;
+}
+
+body.vrmode #canvas {
+  width: 100vw;
+  height: 100vh;
+  object-fit: cover;
+}
+
+/* 戻るボタンを表示 */
+body.vrmode #btnExitVR {
+  display: block;
+}
+
+/* ===== スマホを横向きにしたときの最適化 ===== */
+@media (orientation: landscape) {
+  body.vrmode #canvas {
+    object-fit: contain;
+  }
+}
