@@ -13,6 +13,7 @@ const ctx = canvas.getContext("2d", { willReadFrequently: false });
   const btnStop = el("btnStop");
   const statusEl = el("status");
   const btnFS = el("btnFS");
+  const btnExitVR = el("btnExitVR");
   
   // controls
   const thr = el("thr");
@@ -271,10 +272,10 @@ const ctx = canvas.getContext("2d", { willReadFrequently: false });
         if(chance(prob)){
           const intensity = Number(spaceIntensity.value) / 100.0;
           
-          // 左側無視領域の幅を時間で揺らす（1/4〜1/2画面）
-          const t = performance.now() * 0.0006;
-          const neglectRatio = 0.25 + (Math.sin(t) + 1) * 0.125; // 0.25〜0.5
-          const w = Math.floor(vw * neglectRatio);
+// 左側無視領域の幅を時間で揺らす（1/4〜1/2画面）
+const time = performance.now() * 0.0006;
+const neglectRatio = 0.25 + (Math.sin(time) + 1) * 0.125;
+const w = Math.floor(vw * neglectRatio);
           
           const x = 0, y = 0, h = vh;
           
@@ -327,24 +328,51 @@ const ctx = canvas.getContext("2d", { willReadFrequently: false });
         }
       }, { passive: true });
         
-        // ===== ダブルタップでフルスクリーン切替（任意） =====
-        let _lastTap = 0;
-        canvas.addEventListener("touchend", () => {
-          const now = Date.now();
-          if (now - _lastTap < 350) toggleFullscreen();
-          _lastTap = now;
-        });
-        
-        function toggleFullscreen(){
-          const el = document.documentElement;
-          if(!document.fullscreenElement){
-            el.requestFullscreen?.();
-          }else{
-            document.exitFullscreen?.();
-          }
-        }
+// ===== ダブルタップで VRモード切替 =====
+let _lastTap = 0;
+canvas.addEventListener("touchend", () => {
+  const now = Date.now();
+  if (now - _lastTap < 350) {
+    if (document.body.classList.contains("vrmode")) {
+      exitVR();
+    } else {
+      enterVR();
+    }
+  }
+  _lastTap = now;
+});
         
         // ===== UI 初期化 =====
-        btnFS.addEventListener("click", toggleFullscreen);
+        btnFS.addEventListener("click", enterVR);
         mirror.checked = true;
         showBoxes.checked = true;
+
+function enterVR(){
+  document.body.classList.add("vrmode");
+
+  // 画面を横向きにロック（対応ブラウザのみ）
+  if(screen.orientation && screen.orientation.lock){
+    screen.orientation.lock("landscape").catch(()=>{});
+  }
+
+  // フルスクリーンにする
+  if(!document.fullscreenElement){
+    document.documentElement.requestFullscreen?.();
+  }
+}
+
+function exitVR(){
+  document.body.classList.remove("vrmode");
+
+  // 向きロック解除
+  if(screen.orientation && screen.orientation.unlock){
+    screen.orientation.unlock();
+  }
+
+  // フルスクリーン解除
+  if(document.fullscreenElement){
+    document.exitFullscreen?.();
+  }
+}
+
+btnExitVR.addEventListener("click", exitVR);
