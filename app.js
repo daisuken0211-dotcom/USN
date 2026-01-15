@@ -353,15 +353,18 @@ btnExitVR.addEventListener("click", exitVR);
 function enterVR(){
   document.body.classList.add("vrmode");
 
+  // 横向きロック（Android / iPadOS Safari 対応ブラウザ）
   if (screen.orientation && screen.orientation.lock) {
     screen.orientation.lock("landscape").catch(()=>{});
   }
 
-  // iPhoneは video だけフルスクリーン可能
-  if (video.webkitEnterFullscreen) {
-    video.webkitEnterFullscreen();   // ← これが唯一の正解
-  } else if (video.requestFullscreen) {
-    video.requestFullscreen();
+  // iPad / iPhone は Fullscreen API を使わない
+  // （videoをフルスクリーンにするとUSNが消えるため）
+  if (!/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+    // Android / PC のみ本物のフルスクリーン
+    if (canvas.requestFullscreen) {
+      canvas.requestFullscreen();
+    }
   }
 }
         
