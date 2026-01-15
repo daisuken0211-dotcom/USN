@@ -272,10 +272,10 @@ const ctx = canvas.getContext("2d", { willReadFrequently: false });
         if(chance(prob)){
           const intensity = Number(spaceIntensity.value) / 100.0;
           
-// 左側無視領域の幅を時間で揺らす（1/4〜1/2画面）
-const time = performance.now() * 0.0006;
-const neglectRatio = 0.25 + (Math.sin(time) + 1) * 0.125;
-const w = Math.floor(vw * neglectRatio);
+          // 左側無視領域の幅を時間で揺らす（1/4〜1/2画面）
+          const time = performance.now() * 0.0006;
+          const neglectRatio = 0.25 + (Math.sin(time) + 1) * 0.125;
+          const w = Math.floor(vw * neglectRatio);
           
           const x = 0, y = 0, h = vh;
           
@@ -293,7 +293,7 @@ const w = Math.floor(vw * neglectRatio);
           }
         }
       }
-
+      
       
       // ===== 物体（検出物体の左半分）エフェクト =====
       if(enableObject.checked){
@@ -321,60 +321,56 @@ const w = Math.floor(vw * neglectRatio);
     }
     
     canvas.addEventListener("touchmove", e=>e.preventDefault(), {passive:false});
-      // ===== 3本指タッチでメニュー表示/非表示 =====
+      // ===== 3本指でメニュー表示 =====
       canvas.addEventListener("touchstart", (e) => {
         if (e.touches && e.touches.length === 3) {
           document.body.classList.toggle("showMenu");
         }
       }, { passive: true });
         
-// ===== ダブルタップで VRモード切替 =====
-let _lastTap = 0;
-canvas.addEventListener("touchend", () => {
-  const now = Date.now();
-  if (now - _lastTap < 350) {
-    if (document.body.classList.contains("vrmode")) {
-      exitVR();
-    } else {
-      enterVR();
-    }
-  }
-  _lastTap = now;
-});
+        // ===== ダブルタップでVR切替 =====
+        let _lastTap = 0;
+        canvas.addEventListener("touchend", () => {
+          const now = Date.now();
+          if (now - _lastTap < 350) {
+            if (document.body.classList.contains("vrmode")) {
+              exitVR();
+            } else {
+              enterVR();
+            }
+          }
+          _lastTap = now;
+        });
         
-        // ===== UI 初期化 =====
-        btnFS.addEventListener("click", enterVR);
+        // ===== UI初期化 =====
         mirror.checked = true;
         showBoxes.checked = true;
-
-function enterVR(){
-  document.body.classList.add("vrmode");
-
-  const vr = document.getElementById("vrLayer");
-
-  // 画面を横向きにロック（対応ブラウザのみ）
-  if (screen.orientation && screen.orientation.lock) {
-    screen.orientation.lock("landscape").catch(()=>{});
-  }
-
-  // vrLayer だけをフルスクリーンにする
-  if (!document.fullscreenElement) {
-    vr.requestFullscreen?.();
-  }
-}
-
-function exitVR(){
-  document.body.classList.remove("vrmode");
-
-  // 向きロック解除
-  if(screen.orientation && screen.orientation.unlock){
-    screen.orientation.unlock();
-  }
-
-  // フルスクリーン解除
-  if(document.fullscreenElement){
-    document.exitFullscreen?.();
-  }
-}
-
-btnExitVR.addEventListener("click", exitVR);
+        
+        // ===== VR =====
+        function enterVR(){
+          const vr = document.getElementById("vrLayer");
+          
+          document.body.classList.add("vrmode");
+          
+          if (screen.orientation && screen.orientation.lock) {
+            screen.orientation.lock("landscape").catch(()=>{});
+          }
+          
+          if (!document.fullscreenElement) {
+            vr.requestFullscreen();
+          }
+        }
+        
+        function exitVR(){
+          document.body.classList.remove("vrmode");
+          
+          if (screen.orientation && screen.orientation.unlock){
+            screen.orientation.unlock();
+          }
+          
+          if (document.fullscreenElement){
+            document.exitFullscreen();
+          }
+        }
+        
+        btnExitVR.addEventListener("click", exitVR);
