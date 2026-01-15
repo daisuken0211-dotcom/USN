@@ -353,16 +353,15 @@ btnExitVR.addEventListener("click", exitVR);
 function enterVR(){
   document.body.classList.add("vrmode");
 
-  // 横向きロック（対応ブラウザのみ）
   if (screen.orientation && screen.orientation.lock) {
     screen.orientation.lock("landscape").catch(()=>{});
   }
 
-  // ★ canvas をフルスクリーンにする
-  if (canvas.requestFullscreen) {
-    canvas.requestFullscreen();
-  } else if (canvas.webkitRequestFullscreen) {
-    canvas.webkitRequestFullscreen(); // iOS Safari
+  // iPhoneは video だけフルスクリーン可能
+  if (video.webkitEnterFullscreen) {
+    video.webkitEnterFullscreen();   // ← これが唯一の正解
+  } else if (video.requestFullscreen) {
+    video.requestFullscreen();
   }
 }
         
