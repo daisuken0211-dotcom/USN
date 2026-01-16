@@ -38,6 +38,7 @@ const objRefreshVal = el("objRefreshVal");
 const classFilter = el("classFilter");
 
 function bindRange(input, label, fmt = (v)=>v){
+if (!input || !label) return;   // ← これを追加
 const update = () => label.textContent = fmt(input.value);
 input.addEventListener("input", update);
 update();
