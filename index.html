@@ -1,121 +1,114 @@
 <!doctype html>
 <html lang="ja">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>半側空間無視・物体無視 体験（カメラ）</title>
-<link rel="stylesheet" href="style.css" />
-<!-- TensorFlow.js + COCO-SSD (browser-only, no server) -->
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
-</head>
-<body>
-<header>
-<h1>半側空間無視・物体無視 体験（カメラ）</h1>
-<p class="sub">
-カメラ映像に対して、<b>画面左側（空間）</b> と <b>各物体の左半分（物体）</b> にランダムな「曇り・消失・粗視化・ぼかし」等を適用します。<br>
-※ 教育・研修用の体験ツール（診断目的ではありません）。
-</p>
-</header>
-
-<main>
-<section class="panel">
-<div class="row">
-<button id="btnStart">カメラ開始</button>
-<button id="btnStop" disabled>停止</button>
-<button id="btnFS">全画面</button>
-<span id="status" class="status">未開始</span>
-</div>
-
-<div class="grid">
-<div class="card">
-<h2>基本設定</h2>
-<label class="field">
-<span>検出しきい値（高いほど厳しい）</span>
-<input id="thr" type="range" min="0.30" max="0.90" step="0.05" value="0.50" />
-<span id="thrVal" class="val">0.50</span>
-</label>
-
-<label class="field">
-<span>検出頻度（ms）</span>
-<input id="detectInterval" type="range" min="100" max="800" step="50" value="250" />
-<span id="detectIntervalVal" class="val">250</span>
-</label>
-
-<label class="field">
-<span>表示：中央線</span>
-<input id="showMidline" type="checkbox" checked />
-</label>
-
-<label class="field">
-<span>表示：検出枠（デバッグ）</span>
-<input id="showBoxes" type="checkbox" />
-</label>
-
-<label class="field">
-<span>ミラー（鏡像）</span>
-<input id="mirror" type="checkbox" checked />
-</label>
-</div>
-
-<div class="card">
-<h2>空間（画面左側）エフェクト</h2>
-<label class="field">
-<span>有効</span>
-<input id="enableSpace" type="checkbox" checked />
-</label>
-<label class="field">
-<span>発生率（%/フレーム）</span>
-<input id="spaceProb" type="range" min="0" max="40" step="1" value="10" />
-<span id="spaceProbVal" class="val">10</span>
-</label>
-<label class="field">
-<span>強さ</span>
-<input id="spaceIntensity" type="range" min="0" max="100" step="1" value="55" />
-<span id="spaceIntensityVal" class="val">55</span>
-</label>
-</div>
-
-<div class="card">
-<h2>物体（各物体の左半分）エフェクト</h2>
-<label class="field">
-<span>有効</span>
-<input id="enableObject" type="checkbox" checked />
-</label>
-<label class="field">
-<span>発生率（%/物体/更新）</span>
-<input id="objProb" type="range" min="0" max="100" step="1" value="65" />
-<span id="objProbVal" class="val">65</span>
-</label>
-<label class="field">
-<span>更新周期（ms）</span>
-<input id="objRefresh" type="range" min="200" max="2000" step="100" value="900" />
-<span id="objRefreshVal" class="val">900</span>
-</label>
-
-<details>
-<summary>対象クラス（COCO 80種）を絞る</summary>
-<p class="hint">例：tv, cup, bottle, bowl, dining table, cell phone, remote など。空欄なら全て対象。</p>
-<textarea id="classFilter" rows="3" placeholder="例: tv,cup,bowl,cell phone,remote"></textarea>
-</details>
-</div>
-</div>
-
-<div class="canvasWrap">
-<video id="video" playsinline muted></video>
-<div id="vrLayer">
-<canvas id="canvas"></canvas>
-<button id="btnExitVR" type="button">戻る</button>
-</div>
-</div>
-
-<p class="footerNote">
-使い方：<b>「カメラ開始」</b> → 設定を調整 → 体験。<br>
-※ iPhone/iPad は Safari、Android は Chrome 推奨。HTTPS または localhost で動作します。
-</p>
-</section>
-</main>
-
-<script src="app.js"></script>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>半側空間無視・物体無視 体験ツール</title>
+    <link rel="stylesheet" href="style.css" />
+    <!-- TensorFlow.js + COCO-SSD -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+  </head>
+  <body class="showMenu">
+    <header>
+      <div class="header-content">
+        <h1>半側空間無視・物体無視 体験ツール</h1>
+        <p class="sub">
+          カメラ映像の<b>画面左側（空間）</b>と<b>検出物体の左半分（物体）</b>に視覚的エフェクトを適用します。<br />
+          <span class="note">※ 教育・研修用（診断目的ではありません）。</span>
+        </p>
+      </div>
+    </header>
+    
+    <main>
+    <section class="panel">
+      <!-- 操作用トップバー -->
+      <div class="controls-row">
+        <button id="btnStart" class="btn-primary">カメラ開始</button>
+        <button id="btnStop" class="btn-secondary" disabled>停止</button>
+        <button id="btnFS" class="btn-secondary">全画面 / VR</button>
+        <span id="status" class="status-badge">未開始</span>
+      </div>
+      
+      <!-- 設定グリッド -->
+      <div class="settings-grid">
+        <!-- 基本設定 -->
+        <div class="card">
+          <h3>基本設定</h3>
+          <div class="field">
+            <label for="thr">検出しきい値</label>
+            <input id="thr" type="range" min="0.30" max="0.90" step="0.05" value="0.50" />
+            <span id="thrVal" class="val-display">0.50</span>
+          </div>
+          <div class="field">
+            <label for="detectInterval">検出頻度 (ms)</label>
+            <input id="detectInterval" type="range" min="100" max="800" step="50" value="250" />
+            <span id="detectIntervalVal" class="val-display">250</span>
+          </div>
+          <div class="field-check">
+            <label><input id="showMidline" type="checkbox" checked /> 中央線を表示</label>
+          </div>
+          <div class="field-check">
+            <label><input id="showBoxes" type="checkbox" /> 検出枠を表示 (デバッグ)</label>
+          </div>
+          <div class="field-check">
+            <label><input id="mirror" type="checkbox" checked /> ミラーモード</label>
+          </div>
+        </div>
+        
+        <!-- 空間エフェクト -->
+        <div class="card">
+          <h3>空間無視エフェクト</h3>
+          <div class="field-check">
+            <label><input id="enableSpace" type="checkbox" checked /> 有効にする</label>
+          </div>
+          <div class="field">
+            <label for="spaceProb">発生率 (%)</label>
+            <input id="spaceProb" type="range" min="0" max="40" step="1" value="10" />
+            <span id="spaceProbVal" class="val-display">10</span>
+          </div>
+          <div class="field">
+            <label for="spaceIntensity">エフェクト強度</label>
+            <input id="spaceIntensity" type="range" min="0" max="100" step="1" value="55" />
+            <span id="spaceIntensityVal" class="val-display">55</span>
+          </div>
+        </div>
+        
+        <!-- 物体エフェクト -->
+        <div class="card">
+          <h3>物体無視エフェクト</h3>
+          <div class="field-check">
+            <label><input id="enableObject" type="checkbox" checked /> 有効にする</label>
+          </div>
+          <div class="field">
+            <label for="objProb">対象となる確率 (%)</label>
+            <input id="objProb" type="range" min="0" max="100" step="1" value="65" />
+            <span id="objProbVal" class="val-display">65</span>
+          </div>
+          
+          <details class="advanced-settings">
+          <summary>詳細設定（フィルタリング）</summary>
+          <p class="hint">特定の物体のみ対象にする場合（カンマ区切り）</p>
+          <textarea id="classFilter" rows="2" placeholder="例: cup, bottle, cell phone"></textarea>
+          </details>
+        </div>
+      </div>
+      
+      <!-- 映像表示エリア -->
+      <div class="canvas-container">
+        <video id="video" playsinline muted></video>
+        <div id="vrLayer">
+          <canvas id="canvas"></canvas>
+          <button id="btnExitVR" type="button">戻る</button>
+        </div>
+      </div>
+      
+      <footer class="footer-note">
+        <p>操作方法: 「カメラ開始」で開始。3本指タップで設定メニューの表示/非表示を切り替え。全画面表示でVR体験が可能です。</p>
+      </footer>
+    </section>
+    </main>
+    
+    <script src="app.js"></script>
+  </body>
 </html>
