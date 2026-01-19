@@ -243,6 +243,36 @@ ctx.clearRect(0,0,canvas.width,canvas.height);
 btnStart.addEventListener("click", startCamera);
 btnStop.addEventListener("click", stopCamera);
 
+// ===== 修正後のみ表示 =====
+const btnProcessedOnly = document.getElementById("btnProcessedOnly");
+
+if (btnProcessedOnly) {
+  btnProcessedOnly.addEventListener("click", () => {
+    // ヘッダー・設定・説明を非表示
+    const header = document.querySelector("header");
+    if (header) header.style.display = "none";
+
+    const settings = document.querySelector(".settings-grid");
+    if (settings) settings.style.display = "none";
+
+    const footer = document.querySelector(".footer-note");
+    if (footer) footer.style.display = "none";
+
+    // 元映像（video）を非表示
+    if (video) video.style.display = "none";
+
+    // canvas を完全没入表示
+    canvas.style.position = "fixed";
+    canvas.style.inset = "0";
+    canvas.style.width = "100vw";
+    canvas.style.height = "100vh";
+    canvas.style.zIndex = "999";
+
+    // ステータス表示も消す（没入優先）
+    if (statusEl) statusEl.style.display = "none";
+  });
+}
+
 async function loop(ts){
 if(!running) return;
 
