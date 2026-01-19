@@ -12,8 +12,6 @@ const ctx = canvas.getContext("2d", { willReadFrequently: false });
 const btnStart = el("btnStart");
 const btnStop = el("btnStop");
 const statusEl = el("status");
-const btnFS = el("btnFS");
-const btnExitVR = el("btnExitVR");
 
 // controls
 const thr = el("thr");
@@ -74,6 +72,19 @@ function clamp(v, min, max){ return Math.max(min, Math.min(max, v)); }
 
 function randInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
 function chance(p01){ return Math.random() < p01; }
+
+// ===== 視距離判定用：最大物体サイズ比 =====
+function getLargestDetectionRatio(detections, vw, vh){
+if (!detections || detections.length === 0) return 0;
+let maxRatio = 0;
+for (const d of detections){
+const [, , w, h] = d.bbox;
+const ratio = (w * h) / (vw * vh);
+if (ratio > maxRatio) maxRatio = ratio;
+}
+
+  return maxRatio;
+}
 
 // --- Effects ---
 function applyFog(targetCtx, x,y,w,h, intensity01){
@@ -297,34 +308,32 @@ detections = preds.filter(p => p.score >= t).filter(p => !filter || filter.has(p
 ctx.clearRect(0,0,vw,vh);
 ctx.drawImage(off, 0,0, vw, vh);
 
-// ===== 空間無視（A型：近空間と遠空間が揺れる egocentric neglect） =====
-if(enableSpace.checked){
-const prob = Number(spaceProb.value) / 100.0;
-if(chance(prob)){
-const intensity = Number(spaceIntensity.value) / 100.0;
+// ===== 近い／遠いの判定 =====
+const largestRatio = getLargestDetectionRatio(detections, vw, vh);
+const OBJECT_DOMINANT_RATIO = 0.12; // 12%以上なら「近くの物体」
 
-// 左側無視領域の幅を時間で揺らす（1/4〜1/2画面）
-const time = performance.now() * 0.0006;
-const neglectRatio = 0.25 + (Math.sin(time) + 1) * 0.125;
-const w = Math.floor(vw * neglectRatio);
+// ===== 空間無視（遠くを見ているときだけ発動）=====
+if (enableSpace.checked && largestRatio < OBJECT_DOMINANT_RATIO) {
+  const prob = Number(spaceProb.value) / 100.0;
+  if (chance(prob)) {
+    const intensity = Number(spaceIntensity.value) / 100.0;
 
-const x = 0, y = 0, h = vh;
+    const time = performance.now() * 0.0006;
+    const neglectRatio = 0.25 + (Math.sin(time) + 1) * 0.125;
+    const w = Math.floor(vw * neglectRatio);
 
-// 近空間〜遠空間がズレる感じを作る
-applyFog(ctx, x, y, w, h, intensity * 0.85);
-applyBlur(ctx, off, x, y, w, h, intensity * 0.75);
-applyShiftNoise(ctx, off, x, y, w, h, intensity * 0.60);
+    applyFog(ctx, 0, 0, w, vh, intensity * 0.85);
+    applyBlur(ctx, off, 0, 0, w, vh, intensity * 0.75);
+    applyShiftNoise(ctx, off, 0, 0, w, vh, intensity * 0.60);
 
-// ときどき強い欠落（近いものが消えたり、遠いものが消えたりする感じ）
-if(chance(0.35)){
-applyPixelate(ctx, off, x, y, w, h, intensity * 0.90);
+    if (chance(0.35)) {
+      applyPixelate(ctx, off, 0, 0, w, vh, intensity * 0.90);
+    }
+    if (chance(0.20)) {
+      applyErase(ctx, 0, 0, w, vh, intensity * 0.80);
+    }
+  }
 }
-if(chance(0.20)){
-applyErase(ctx, x, y, w, h, intensity * 0.80);
-}
-}
-}
-
 
 // ===== 物体（検出物体の左半分）エフェクト =====
 if(enableObject.checked){
@@ -359,49 +368,6 @@ document.body.classList.toggle("showMenu");
 }
 }, { passive: true });
 
-// ===== ダブルタップでVR切替 =====
-let _lastTap = 0;
-canvas.addEventListener("touchend", () => {
-const now = Date.now();
-if (now - _lastTap < 350) {
-if (document.body.classList.contains("vrmode")) {
-exitVR();
-} else {
-enterVR();
-}
-}
-_lastTap = now;
-});
-
 // ===== UI初期化 =====
 mirror.checked = true;
 showBoxes.checked = true;
-
-btnFS.addEventListener("click", enterVR);
-btnExitVR.addEventListener("click", exitVR);
-
-// ===== VR =====
-function enterVR(){
-  document.body.classList.add("vrmode");
-  
-  if (screen.orientation && screen.orientation.lock) {
-    screen.orientation.lock("landscape").catch(()=>{});
-  }
-  
-  // ★ iPad / iPhone では video を fullscreen にしない
-  // ★ CSSの vrmode で canvas を画面いっぱいにする
-}
-
-function exitVR(){
-document.body.classList.remove("vrmode");
-
-if (screen.orientation && screen.orientation.unlock){
-screen.orientation.unlock();
-}
-
-if (document.fullscreenElement){
-document.exitFullscreen();
-}
-}
-
-btnExitVR.addEventListener("click", exitVR);
